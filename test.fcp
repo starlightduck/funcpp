@@ -1,0 +1,84 @@
+#define Outer 1
+#define Inner 0
+
+#include "test_inc.fc";
+
+#flag 1 IsOwner IsNotOwner;
+
+b = Flag:IsOwner;
+if (b.IsOwner?)
+    c = b.IsNotOwner?;
+
+a = Outer + Inner - OuterInner * Inner:Outer / Outer_Inner;
+
+#accessor 1 seqno int
+
+m = data[seqno];
+
+data[seqno] = 1;
+data[seqno] += 1;
+
+#define deftest
+
+#ifdef deftest
+deftest is defined
+#else
+deftest is not defined
+#endif
+
+anyway
+
+#undef deftest
+
+#ifdef deftest
+deftest is defined
+#error This is an error!
+#else
+deftest is not defined
+#endif
+
+#define deftest
+
+#ifdef deftest
+    #ifndef badtest
+        #dump
+    #endif
+#endif
+
+#ifeq TestDef 123
+good
+#endif
+
+#ifneq TestDef 111
+good
+#endif
+
+#ifeq TestDef abc
+bad
+#endif
+
+#define Features good,ugly
+
+#ifsub Features good
+good feature
+#endif
+
+#ifsub Features bad
+bad feature
+#endif
+
+#ifsub Features ugly
+ugly feature
+#endif
+
+#mldefine multiline
+this
+    is
+        multi-line
+            define
+#end
+
+before
+multiline;
+after
+

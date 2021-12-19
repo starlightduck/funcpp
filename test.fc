@@ -1,0 +1,114 @@
+;;; funcpp arguments: --TestDef=123 test.fcp -
+;;; #define Outer 1
+;;; #define Inner 0
+
+;;; #include "test_inc.fc";
+
+;;; #####################################
+;;; ##### BEGIN INCLUDE test_inc.fc #####
+;;; ###                               ###
+
+;; This is an included file
+;;; #define Inner 2;
+;; This is an end of included file
+
+;;; ###                             ###
+;;; ##### END INCLUDE test_inc.fc #####
+;;; ###################################
+
+
+;;; #flag 1 IsOwner IsNotOwner;
+;;; Internal #define Flag:IsOwner 1
+int .IsOwner?(int a)   asm "1 PUSHINT AND"; ;;; Internal #implicit
+int .IsNotOwner?(int a)   asm "1 PUSHINT AND ISZERO"; ;;; Internal #implicit
+
+
+b = 1; ;;; Flag:IsOwner=1
+if (b.IsOwner?()) ;;; %IsOwner?
+    c = b.IsNotOwner?(); ;;; %IsNotOwner?
+
+a = 1 + 2 - OuterInner * Inner:Outer / Outer_Inner; ;;; Outer=1, Inner=2
+
+;;; #accessor 1 seqno int
+int _get_seqno_(tuple data) asm "1 INDEX";
+(tuple, ()) ~_set_seqno_(tuple data, int value) asm "1 SETINDEX";
+
+m = data._get_seqno_(); ;;; [seqno]
+
+data~_set_seqno_(1); ;;; [~seqno=]
+data~_set_seqno_(data._get_seqno_() + 1); ;;; [~seqno?=]
+
+;;; #define deftest
+
+;;; #ifdef deftest
+deftest is defined
+;;; #else
+;;; #endif
+
+anyway
+
+;;; #undef deftest
+
+;;; #ifdef deftest
+;;; #else
+deftest is not defined
+;;; #endif
+
+;;; #define deftest
+
+;;; #ifdef deftest
+;;; #ifndef badtest
+;;; #dump
+;; Defines:
+;;   TestDef = 123
+;;   Outer = 1
+;;   Inner = 2
+;;   Flag:IsOwner = 1
+;;   deftest = 
+;; Implicits
+;;   IsOwner?
+;;   IsNotOwner?
+;; Accessors
+;;   seqno
+;; Conditional stack
+;;   True True
+;;; #endif
+;;; #endif
+
+;;; #ifeq TestDef 123
+good
+;;; #endif
+
+;;; #ifneq TestDef 111
+good
+;;; #endif
+
+;;; #ifeq TestDef abc
+;;; #endif
+
+;;; #define Features good,ugly
+
+;;; #ifsub Features good
+good feature
+;;; #endif
+
+;;; #ifsub Features bad
+;;; #endif
+
+;;; #ifsub Features ugly
+ugly feature
+;;; #endif
+
+;;; #mldefine multiline
+;;; this
+;;;     is
+;;;         multi-line
+;;;             define
+;;; #end
+
+before
+this
+    is
+        multi-line
+            define; ;;; multiline=this\n    is\n        multi-line\n            define
+after

@@ -1,0 +1,3 @@
+;; This is an included file
+#define Inner 2;
+;; This is an end of included file
