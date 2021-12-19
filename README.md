@@ -5,8 +5,6 @@ Therefore, preprocessed files have fcp extension (kinda func++).
 
 It is heavily built on regular expressions and therefore may bail out in some edge cases.
 
-The most notable is lack of recurrency guard for defines (it is possible for infinite loop in case of definition loop).
-
 Preprocessor directives can optionally end with `;` but that is not required.
 
 ## Usage (script options)

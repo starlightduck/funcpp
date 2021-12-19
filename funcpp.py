@@ -216,7 +216,14 @@ exts = []
 def process_line(line, append='', full=False):
     changed = True
     exts.clear()
+    iters = 1000
+    orig = line
     while changed:
+        iters -= 1
+        if iters <= 0:
+            print("Line rewrite error: too deep recursion, possible circular definition", file=sys.stderr)
+            print("For line: " + orig, file=sys.stderr)
+            exit(2)
         newl = line
         newl = re.sub(r'([0-9\\.]+)\$c', coin_rewrite, newl)
         newl = re.sub(r'@"([^"]+)"', atstr_rewrite, newl)
