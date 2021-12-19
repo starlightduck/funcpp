@@ -33,6 +33,8 @@ def main():
         process_file(os.path.abspath(arg), out_file)
     if out_file is not None:
         out_file.close()
+        if exit_code != 0:
+            os.unlink(output_file_name)
 
 def process_file(file_name, out_file, raw=False):
     global exit_code
