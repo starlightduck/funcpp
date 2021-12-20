@@ -160,8 +160,8 @@ def process_file(file_name, out_file, raw=False):
                         print(';;; WARNING: RX match failed!!!', file=out_file)
                         continue
                     flag_value, flag_pos, flag_neg = rm.groups()
-                    defines['Flag:' + flag_pos] = flag_value
-                    print(';;; Internal #define Flag:' + flag_pos + ' ' + flag_value, file=out_file)
+                    defines['F_' + flag_pos] = flag_value
+                    print(';;; Internal #define F_' + flag_pos + ' ' + flag_value, file=out_file)
                     implicits.append(flag_pos + '?')
                     print('int .' + flag_pos + '?(int a)   asm "' + flag_value + ' PUSHINT AND"; ;;; Internal #implicit', file=out_file)
                     implicits.append(flag_neg + '?')

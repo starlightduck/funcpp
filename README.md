@@ -57,7 +57,7 @@ Ends the open conditional block.
 ### `#flag <value> <positive name> <negative name>`
 Registers a preprocessor flag with set names.
 
-This is equivalent to defining `Flags:<positive name>` set with `value`, 
+This is equivalent to defining `F_<positive name>` set with `value`, 
 and defining `implicit` functions `.<positive name>?` with code `<value> PUSHINT AND`
 and `.<negative name>?` with code `<value> PUSHINT AND ISZERO`.
 
