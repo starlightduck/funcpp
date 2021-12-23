@@ -17,13 +17,13 @@
 ;;; ###################################
 
 
-;;; #flag 1 IsOwner IsNotOwner;
-;;; Internal #define Flag:IsOwner 1
+;;; #flag 1 IsOwner IsNotOwner
+;;; Internal #define F_IsOwner 1
 int .IsOwner?(int a)   asm "1 PUSHINT AND"; ;;; Internal #implicit
 int .IsNotOwner?(int a)   asm "1 PUSHINT AND ISZERO"; ;;; Internal #implicit
 
 
-b = 1; ;;; Flag:IsOwner=1
+b = 1; ;;; F_IsOwner=1
 if (b.IsOwner?()) ;;; %IsOwner?
     c = b.IsNotOwner?(); ;;; %IsNotOwner?
 
@@ -63,8 +63,8 @@ deftest is not defined
 ;;   TestDef = 123
 ;;   Outer = 1
 ;;   Inner = 2
-;;   Flag:IsOwner = 1
-;;   deftest = 
+;;   F_IsOwner = 1
+;;   deftest =
 ;; Implicits
 ;;   IsOwner?
 ;;   IsNotOwner?
@@ -112,3 +112,88 @@ this
         multi-line
             define; ;;; multiline=this\n    is\n        multi-line\n            define
 after
+
+;; addr -> (int8 wc, uint256 addr)
+
+;;; #storage
+;;; uint8 a_byte;
+int _get_a_byte_(tuple data) asm "0 INDEX";
+(tuple, ()) ~_set_a_byte_(tuple data, int value) asm "0 SETINDEX";
+;;; cell some_cell;
+cell _get_some_cell_(tuple data) asm "1 INDEX";
+(tuple, ()) ~_set_some_cell_(tuple data, cell value) asm "1 SETINDEX";
+;;; uint32 seqno;
+int _get_seqno_(tuple data) asm "2 INDEX";
+(tuple, ()) ~_set_seqno_(tuple data, int value) asm "2 SETINDEX";
+;;; string symbol;
+slice _get_symbol_(tuple data) asm "3 INDEX";
+(tuple, ()) ~_set_symbol_(tuple data, slice value) asm "3 SETINDEX";
+;;; addr owner;
+int _get_owner_(tuple data) asm "4 INDEX";
+(tuple, ()) ~_set_owner_(tuple data, int value) asm "4 SETINDEX";
+int _get_owner_wc_(tuple data) asm "5 INDEX";
+(tuple, ()) ~_set_owner_wc_(tuple data, int value) asm "5 SETINDEX";
+;;; uint256 owner_key;
+int _get_owner_key_(tuple data) asm "6 INDEX";
+(tuple, ()) ~_set_owner_key_(tuple data, int value) asm "6 SETINDEX";
+;;; dict dictionary;
+cell _get_dictionary_(tuple data) asm "7 INDEX";
+(tuple, ()) ~_set_dictionary_(tuple data, cell value) asm "7 SETINDEX";
+;;; uint24 unusual_int;
+int _get_unusual_int_(tuple data) asm "8 INDEX";
+(tuple, ()) ~_set_unusual_int_(tuple data, int value) asm "8 SETINDEX";
+;;; int16 index;
+int _get_index_(tuple data) asm "9 INDEX";
+(tuple, ()) ~_set_index_(tuple data, int value) asm "9 SETINDEX";
+;;; int8 chain_id;
+int _get_chain_id_(tuple data) asm "10 INDEX";
+(tuple, ()) ~_set_chain_id_(tuple data, int value) asm "10 SETINDEX";
+;;; grams amount;
+int _get_amount_(tuple data) asm "11 INDEX";
+(tuple, ()) ~_set_amount_(tuple data, int value) asm "11 SETINDEX";
+;;; #end
+tuple storage_pack(int v_a_byte, cell v_some_cell, int v_seqno, slice v_symbol, int v_owner, int v_owner_wc, int v_owner_key, cell v_dictionary, int v_unusual_int, int v_index, int v_chain_id, int v_amount) asm "12 TUPLE";
+(int, cell, int, slice, int, int, int, cell, int, int, int, int) storage_unpack(tuple data) asm "12 UNTUPLE";
+tuple storage_load() inline_ref {
+    slice cs = get_data().begin_parse();
+    int v_a_byte = cs~load_uint(8);
+    cell v_some_cell = cs~load_ref();
+    int v_seqno = cs~load_uint(32);
+    int v_symbol_size = cs~load_uint(8);
+    slice v_symbol = cs~load_bits(v_symbol_size * 8);
+    int v_owner = cs~load_uint(256);
+    int v_owner_wc = cs~load_int(8);
+    int v_owner_key = cs~load_uint(256);
+    cell v_dictionary = cs~load_dict();
+    int v_unusual_int = cs~load_uint(24);
+    int v_index = cs~load_int(16);
+    int v_chain_id = cs~load_int(8);
+    int v_amount = cs~load_grams();
+    cs.end_parse();
+    return storage_pack(v_a_byte, v_some_cell, v_seqno, v_symbol, v_owner, v_owner_wc, v_owner_key, v_dictionary, v_unusual_int, v_index, v_chain_id, v_amount);
+}
+() storage_save(tuple data) impure inline_ref {
+    (int v_a_byte, cell v_some_cell, int v_seqno, slice v_symbol, int v_owner, int v_owner_wc, int v_owner_key, cell v_dictionary, int v_unusual_int, int v_index, int v_chain_id, int v_amount) = storage_unpack(data);
+    builder bld = begin_cell()
+            .store_uint(v_a_byte, 8)
+            .store_ref(v_some_cell)
+            .store_uint(v_seqno, 32)
+            .store_uint(v_symbol.slice_bits() / 8, 8)
+            .store_slice(v_symbol)
+            .store_uint(v_owner, 256)
+            .store_int(v_owner_wc, 8)
+            .store_uint(v_owner_key, 256)
+            .store_dict(v_dictionary)
+            .store_uint(v_unusual_int, 24)
+            .store_int(v_index, 16)
+            .store_int(v_chain_id, 8)
+            .store_grams(v_amount)
+    ;
+    set_data(bld.end_cell());
+}
+
+int seqno() method_id {
+	return storage_load()._get_seqno_(); ;;; [seqno]
+}
+
+int op = 0x4e73744b; ;;; @"NstK"=0x4e73744b

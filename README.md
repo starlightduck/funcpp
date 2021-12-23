@@ -14,6 +14,12 @@ Output file name can be - to output to standard output.
 
 You can provide --ARG=VAL to provide external defines that will be applied to all following files.
 
+## Rewrites
+Some statements are rewrited into another form while processing.
+
+`123.456$c` will turn into `123` `456000000`, and `@"NstK"` will become `0x4e73744b`.
+
+
 ## Supported directives
 
 You may want to take a look at `test.fcp` for directive usage examples.
@@ -75,4 +81,10 @@ Causes compilation failure, the output file would be deleted, writes message to 
 ### `#dump`
 Dumps internal state of preprocessor (defines, implicits, accessors and conditional stack)
 
+### `#storage`
+Defines contract storage definition (top-level for now). Ends with `#end`.
 
+Each variable starts on new line in format `type name;`.
+
+Supported types: `(u?int)([0-9]+)`, `(cell|ref)`, `(dict|optref|cell\?|ref\?)`, `(gram|coin)s?`, 
+`addr(ress)?`, `str(ing)?`, `slice`. `addr` type creates additional `<name>_wc` variable.

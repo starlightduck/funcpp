@@ -3,9 +3,9 @@
 
 #include "test_inc.fc";
 
-#flag 1 IsOwner IsNotOwner;
+#flag 1 IsOwner IsNotOwner
 
-b = Flag:IsOwner;
+b = F_IsOwner;
 if (b.IsOwner?)
     c = b.IsNotOwner?;
 
@@ -82,3 +82,24 @@ before
 multiline;
 after
 
+;; addr -> (int8 wc, uint256 addr)
+
+#storage
+    uint8 a_byte;
+    cell some_cell;
+    uint32 seqno;
+    string symbol;
+    addr owner;
+    uint256 owner_key;
+    dict dictionary;
+    uint24 unusual_int;
+    int16 index;
+    int8 chain_id;
+    grams amount;
+#end
+
+int seqno() method_id {
+	return storage_load()[seqno];
+}
+
+int op = @"NstK";

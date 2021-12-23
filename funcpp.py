@@ -5,6 +5,7 @@ import sys, re, os, binascii
 defines = {}
 implicits = []
 accessors = []
+storage = []
 exit_code = 0
 
 def main():
@@ -14,11 +15,21 @@ def main():
         print('     Use --ARG=VAL for custom external-defined #defines (or --ARG)')
         print('     Use - instead of output.fc for writing to stdout')
 
+    if len(args) == 3 and args[1] == '--':
+        narg = []
+        with open(args[2]) as in_file:
+            for full_line in in_file:
+                line = full_line.strip()
+                if line != '':
+                    narg.append(full_line.strip())
+        narg.insert(0, args[0])
+        args = narg
+
     out_file = None
     output_file_name = args[len(args) - 1]
     if output_file_name != '-':
         out_file = open(output_file_name, "w")
-    print(';;; funcpp arguments: ' + ' '.join(args[1:]))
+    print(';;; funcpp arguments: ' + ' '.join(args[1:]), file=out_file)
     for arg_idx in range(1, len(args) - 1):
         arg = args[arg_idx]
         if arg[:2] == '--':
@@ -42,18 +53,143 @@ def process_file(file_name, out_file, raw=False):
     if_stack = []
     defining = None
     definiton = []
+    storing = False
+    storcnt = 0
+    stordef = []
     with open(file_name) as in_file:
         for full_line in in_file:
             line = full_line.rstrip()
             if defining:
                 if line.lstrip() == '#end':
-                    print(';;; #end')
+                    print(';;; #end', file=out_file)
                     defines[defining] = '\n'.join(definiton)
                     defining = None
                     definiton = []
                     continue
                 print(';;; ' + line)
                 definiton.append(line)
+                continue
+            if storing:
+                line = line.lstrip()
+                if line == '#end':
+                    print(';;; #end', file=out_file)
+                    list_tn = []
+                    list_t = []
+                    list_n = []
+                    for sd in stordef:
+                        list_tn.append(sd[1] + ' ' + sd[0])
+                        list_t.append(sd[1])
+                        list_n.append(sd[0])
+                    print('tuple storage_pack(' + ', '.join(list_tn) + ') asm "' + str(storcnt) + ' TUPLE";', file=out_file)
+                    print('(' + ', '.join(list_t) + ') storage_unpack(tuple data) asm "' + str(storcnt) + ' UNTUPLE";', file=out_file)
+                    print('tuple storage_load() inline_ref {', file=out_file)
+                    print('    slice cs = get_data().begin_parse();', file=out_file)
+                    for sd in stordef:
+                        st = sd[2]
+                        tne = '    ' + sd[1] + ' ' + sd[0] + ' = '
+                        if st == 'uint' or st == 'int':
+                            print(tne + 'cs~load_' + st + '(' + sd[3] + ');', file=out_file)
+                        elif st == 'cell':
+                            print(tne + 'cs~load_' + ('ref' if sd[3] else 'dict') + '();', file=out_file)
+                        elif st == 'gram':
+                            print(tne + 'cs~load_grams();', file=out_file)
+                        elif st == 'string':
+                            print('    int ' + sd[0] + '_size = cs~load_uint(8);', file=out_file)
+                            print(tne + 'cs~load_bits(' + sd[0] + '_size * 8);', file=out_file)
+                        elif st == 'slice':
+                            print('    int ' + sd[0] + '_size = cs~load_uint(10);', file=out_file)
+                            print(tne + 'cs~load_bits(' + sd[0] + '_size);', file=out_file)
+                    print('    cs.end_parse();', file=out_file)
+                    print('    return storage_pack(' + ', '.join(list_n) + ');', file=out_file)
+                    print('}', file=out_file)
+                    print('() storage_save(tuple data) impure inline_ref {', file=out_file)
+                    print('    (' + ', '.join(list_tn) + ') = storage_unpack(data);', file=out_file)
+                    print('    builder bld = begin_cell()', file=out_file)
+                    for sd in stordef:
+                        st = sd[2]
+                        tne = '            .store_'
+                        if st == 'uint' or st == 'int':
+                            print(tne + st + '(' + sd[0] + ', ' + sd[3] + ')', file=out_file)
+                        elif st == 'cell':
+                            print(tne + ('ref' if sd[3] else 'dict') + '(' + sd[0] + ')', file=out_file)
+                        elif st == 'gram':
+                            print(tne + 'grams(' + sd[0] + ')', file=out_file)
+                        elif st == 'string':
+                            print(tne + 'uint(' + sd[0] + '.slice_bits() / 8, 8)', file=out_file)
+                            print(tne + 'slice(' + sd[0] + ')', file=out_file)
+                        elif st == 'slice':
+                            print(tne + 'uint(' + sd[0] + '.slice_bits(), 10)', file=out_file)
+                            print(tne + 'slice(' + sd[0] + ')', file=out_file)
+                    print('    ;', file=out_file)
+                    print('    set_data(bld.end_cell());', file=out_file)
+                    print('}', file=out_file)
+                    storing = False
+                    storcnt = 0
+                    stordef = []
+                    continue
+                print(';;; ' + line, file=out_file)
+                rm = re.match(r'^([a-zA-Z0-9]+)\s+(.+);$', line)
+                if rm is None:
+                    print(';; WARNING: RX match failed!!!', file=out_file)
+                    continue
+                var_type, var_name = rm.groups()
+                # (u?)int([0-9]+), (cell|dict|ref|xstr(ing)?), (gram|coin)s?
+                # addr(ess)? -> int8 (+_wc), uint256
+                # str(ing)? -> uint8 length, slice(8*length) data
+                # slice -> uint10 length, slice(length) data
+                tvm_type = None
+                tvm_name = 'v_' + var_name
+                rm = re.match(r'^(u?int)([0-9]+)$', var_type)
+                if rm:
+                    tvm_type = 'int'
+                    stordef.append([tvm_name, tvm_type, rm.group(1), rm.group(2)])
+                if rm is None:
+                    rm = re.match(r'^(cell|ref)$', var_type)
+                    if rm:
+                        tvm_type = 'cell'
+                        stordef.append([tvm_name, tvm_type, 'cell', True])
+                if rm is None:
+                    rm = re.match(r'^(dict|optref|cell\?|ref\?)$', var_type)
+                    if rm:
+                        tvm_type = 'cell'
+                        stordef.append([tvm_name, tvm_type, 'cell', False])
+                if rm is None:
+                    rm = re.match(r'^(gram|coin)s?$', var_type)
+                    if rm:
+                        tvm_type = 'int'
+                        stordef.append([tvm_name, tvm_type, 'gram'])
+                if rm is None:
+                    rm = re.match(r'^addr(ress)?$', var_type)
+                    if rm:
+                        tvm_type = '!addr'
+                        stordef.append([tvm_name, 'int', 'uint', '256'])
+                        stordef.append([tvm_name + '_wc', 'int', 'int', '8'])
+                if rm is None:
+                    rm = re.match(r'^str(ing)?$', var_type)
+                    if rm:
+                        tvm_type = 'slice'
+                        stordef.append([tvm_name, tvm_type, 'string'])
+                if rm is None:
+                    rm = re.match(r'^slice$', var_type)
+                    if rm:
+                        tvm_type = 'slice'
+                        stordef.append([tvm_name, tvm_type, 'slice'])
+                if tvm_type is not None:
+                    accessors.append(var_name)
+                    acc_type = tvm_type if tvm_type != '!addr' else 'int'
+                    print(acc_type + ' _get_' + var_name + '_(tuple data) asm "' + str(storcnt) + ' INDEX";',
+                          file=out_file)
+                    print('(tuple, ()) ~_set_' + var_name + '_(tuple data, ' + acc_type + ' value) asm "' +
+                          str(storcnt) + ' SETINDEX";', file=out_file)
+                    storcnt += 1
+                    if tvm_type == '!addr':
+                        print('int _get_' + var_name + '_wc_(tuple data) asm "' + str(storcnt) + ' INDEX";',
+                              file=out_file)
+                        print('(tuple, ()) ~_set_' + var_name + '_wc_(tuple data, int value) asm "' +
+                              str(storcnt) + ' SETINDEX";', file=out_file)
+                        storcnt += 1
+                else:
+                    print(';; Unknown type ' + var_type, file=out_file)
                 continue
             if raw or line[2:] == ';;':
                 if False not in if_stack:
@@ -80,7 +216,6 @@ def process_file(file_name, out_file, raw=False):
                 line = line[:multiline_start]
                 if multiline_end == -1:
                     in_comment = True
-
             if line.lstrip()[:1] == '#' and prepend == '':
                 line = line.lstrip()
                 if False not in if_stack:
@@ -189,6 +324,11 @@ def process_file(file_name, out_file, raw=False):
                         print('(tuple, ()) ~_set_' + acc_name + '_(tuple data, ' + acc_type + ' value) asm "' +
                               acc_idx + ' SETINDEX";', file=out_file)
                     continue
+                if command == 'storage':
+                    storing = True
+                    storcnt = 0
+                    stordef = []
+                    continue
                 if command == 'error':
                     print(';;; !!! Error: ' + argument, file=sys.stderr)
                     exit_code = 1
@@ -243,7 +383,7 @@ def process_line(line, append='', full=False):
         for a in accessors:
             # Operator setter rewrite
             oldl = newl
-            newl = re.sub(r'([\w:]+)\[(' + re.escape(a) + r')]\s*([\-+*|&<>\^]+)=\s*([^;]+);', acwr_op_rewrite, newl)
+            newl = re.sub(r'([\w:]+)\[(' + re.escape(a) + r')]\s*([\-+*|&<>^]+)=\s*([^;]+);', acwr_op_rewrite, newl)
             if oldl != newl:
                 exts.append('[~' + a + '?=]')
             # Simple setter rewrite
