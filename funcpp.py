@@ -56,6 +56,7 @@ def process_file(file_name, out_file, raw=False):
     storing = False
     storcnt = 0
     stordef = []
+    stormode = ''
     with open(file_name) as in_file:
         for full_line in in_file:
             line = full_line.rstrip()
@@ -70,6 +71,11 @@ def process_file(file_name, out_file, raw=False):
                 definiton.append(line)
                 continue
             if storing:
+                glob = stormode == 'global'
+                root = stormode == '' or glob
+                key = 'storage' if root else 'stor_' + stormode
+                acc_pfx = '' if root else stormode + ':'
+                acc_key = acc_pfx.replace(':', '_')
                 line = line.lstrip()
                 if line == '#end':
                     print(';;; #end', file=out_file)
@@ -80,13 +86,18 @@ def process_file(file_name, out_file, raw=False):
                         list_tn.append(sd[1] + ' ' + sd[0])
                         list_t.append(sd[1])
                         list_n.append(sd[0])
-                    print('tuple storage_pack(' + ', '.join(list_tn) + ') asm "' + str(storcnt) + ' TUPLE";', file=out_file)
-                    print('(' + ', '.join(list_t) + ') storage_unpack(tuple data) asm "' + str(storcnt) + ' UNTUPLE";', file=out_file)
-                    print('tuple storage_load() inline_ref {', file=out_file)
-                    print('    slice cs = get_data().begin_parse();', file=out_file)
+                    if not glob:
+                        asm1, asm2 = (str(storcnt), '') if storcnt <= 15 else (str(storcnt) + ' PUSHINT', 'VAR')
+                        print('tuple ' + key + '_pack(' + ', '.join(list_tn) + ') asm "' + asm1 + ' TUPLE' + asm2 + '";', file=out_file)
+                        print('(' + ', '.join(list_t) + ') ' + key + '_unpack(tuple data) asm "' + asm1 + ' UNTUPLE' + asm2 + '";', file=out_file)
+                    if root:
+                        print(('tuple' if not glob else '()') + ' storage_load() inline_ref {', file=out_file)
+                        print('    slice cs = get_data().begin_parse();', file=out_file)
+                    else:
+                        print('tuple ' + stormode + '_unserialize(slice cs) inline_ref {', file=out_file)
                     for sd in stordef:
                         st = sd[2]
-                        tne = '    ' + sd[1] + ' ' + sd[0] + ' = '
+                        tne = '    ' + (sd[1] + ' ' if not glob else '') + sd[0] + ' = '
                         if st == 'uint' or st == 'int':
                             print(tne + 'cs~load_' + st + '(' + sd[3] + ');', file=out_file)
                         elif st == 'cell':
@@ -100,10 +111,15 @@ def process_file(file_name, out_file, raw=False):
                             print('    int ' + sd[0] + '_size = cs~load_uint(10);', file=out_file)
                             print(tne + 'cs~load_bits(' + sd[0] + '_size);', file=out_file)
                     print('    cs.end_parse();', file=out_file)
-                    print('    return storage_pack(' + ', '.join(list_n) + ');', file=out_file)
+                    if not glob:
+                        print('    return ' + key + '_pack(' + ', '.join(list_n) + ');', file=out_file)
                     print('}', file=out_file)
-                    print('() storage_save(tuple data) impure inline_ref {', file=out_file)
-                    print('    (' + ', '.join(list_tn) + ') = storage_unpack(data);', file=out_file)
+                    if root:
+                        print('() storage_save(tuple data) impure inline_ref {', file=out_file)
+                    else:
+                        print('cell ' + stormode + '_serialize(tuple data) impure inline_ref {', file=out_file)
+                    if not glob:
+                        print('    (' + ', '.join(list_tn) + ') = ' + key + '_unpack(data);', file=out_file)
                     print('    builder bld = begin_cell()', file=out_file)
                     for sd in stordef:
                         st = sd[2]
@@ -121,11 +137,15 @@ def process_file(file_name, out_file, raw=False):
                             print(tne + 'uint(' + sd[0] + '.slice_bits(), 10)', file=out_file)
                             print(tne + 'slice(' + sd[0] + ')', file=out_file)
                     print('    ;', file=out_file)
-                    print('    set_data(bld.end_cell());', file=out_file)
+                    if root:
+                        print('    set_data(bld.end_cell());', file=out_file)
+                    else:
+                        print('    return bld.end_cell();', file=out_file)
                     print('}', file=out_file)
                     storing = False
                     storcnt = 0
                     stordef = []
+                    stormode = ''
                     continue
                 print(';;; ' + line, file=out_file)
                 rm = re.match(r'^([a-zA-Z0-9]+)\s+(.+);$', line)
@@ -138,7 +158,7 @@ def process_file(file_name, out_file, raw=False):
                 # str(ing)? -> uint8 length, slice(8*length) data
                 # slice -> uint10 length, slice(length) data
                 tvm_type = None
-                tvm_name = 'v_' + var_name
+                tvm_name = 'v_' + var_name if not glob else 'g_' + var_name
                 rm = re.match(r'^(u?int)([0-9]+)$', var_type)
                 if rm:
                     tvm_type = 'int'
@@ -175,19 +195,28 @@ def process_file(file_name, out_file, raw=False):
                         tvm_type = 'slice'
                         stordef.append([tvm_name, tvm_type, 'slice'])
                 if tvm_type is not None:
-                    accessors.append(var_name)
-                    acc_type = tvm_type if tvm_type != '!addr' else 'int'
-                    print(acc_type + ' _get_' + var_name + '_(tuple data) asm "' + str(storcnt) + ' INDEX";',
-                          file=out_file)
-                    print('(tuple, ()) ~_set_' + var_name + '_(tuple data, ' + acc_type + ' value) asm "' +
-                          str(storcnt) + ' SETINDEX";', file=out_file)
-                    storcnt += 1
-                    if tvm_type == '!addr':
-                        print('int _get_' + var_name + '_wc_(tuple data) asm "' + str(storcnt) + ' INDEX";',
+                    if not glob:
+                        accessors.append(acc_pfx + var_name)
+                        acc_type = tvm_type if tvm_type != '!addr' else 'int'
+                        print(acc_type + ' _get_' + acc_key + var_name + '_(tuple data) asm "' + str(storcnt) + ' INDEX";',
                               file=out_file)
-                        print('(tuple, ()) ~_set_' + var_name + '_wc_(tuple data, int value) asm "' +
+                        print('(tuple, ()) ~_set_' + acc_key + var_name + '_(tuple data, ' + acc_type + ' value) asm "' +
                               str(storcnt) + ' SETINDEX";', file=out_file)
                         storcnt += 1
+                        if tvm_type == '!addr':
+                            accessors.append(acc_pfx + var_name + '_wc')
+                            print('int _get_' + acc_key + var_name + '_wc_(tuple data) asm "' + str(storcnt) + ' INDEX";',
+                                  file=out_file)
+                            print('(tuple, ()) ~_set_' + acc_key + var_name + '_wc_(tuple data, int value) asm "' +
+                                  str(storcnt) + ' SETINDEX";', file=out_file)
+                            storcnt += 1
+                    else:
+                        acc_type = tvm_type if tvm_type != '!addr' else 'int'
+                        print('global ' + acc_type + ' g_' + var_name + ';', file=out_file)
+                        storcnt += 1
+                        if tvm_type == '!addr':
+                            print('global int g_' + var_name + '_wc;', file=out_file)
+                            storcnt += 1
                 else:
                     print(';; Unknown type ' + var_type, file=out_file)
                 continue
@@ -328,23 +357,24 @@ def process_file(file_name, out_file, raw=False):
                     storing = True
                     storcnt = 0
                     stordef = []
+                    stormode = argument
                     continue
                 if command == 'error':
                     print(';;; !!! Error: ' + argument, file=sys.stderr)
                     exit_code = 1
                     continue
                 if command == 'dump':
-                    print(';; Defines:')
+                    print(';; Defines:', file=out_file)
                     for d in defines:
-                        print(';;   ' + d + ' = ' + defines[d].encode('unicode_escape').decode("utf-8"))
-                    print(';; Implicits')
+                        print(';;   ' + d + ' = ' + defines[d].encode('unicode_escape').decode("utf-8"), file=out_file)
+                    print(';; Implicits', file=out_file)
                     for i in implicits:
-                        print(';;   ' + i)
-                    print(';; Accessors')
+                        print(';;   ' + i, file=out_file)
+                    print(';; Accessors', file=out_file)
                     for a in accessors:
-                        print(';;   ' + a)
-                    print(';; Conditional stack')
-                    print(';;   ' + ' '.join(['True' if b else 'False' for b in if_stack]))
+                        print(';;   ' + a, file=out_file)
+                    print(';; Conditional stack', file=out_file)
+                    print(';;   ' + ' '.join(['True' if b else 'False' for b in if_stack]), file=out_file)
                     continue
                 print('WARNING: Unknown command ' + command)
                 continue
@@ -381,19 +411,40 @@ def process_line(line, append='', full=False):
             if oldl != newl:
                 exts.append('%' + i)
         for a in accessors:
+            if ':' in a:
+                # Context-dependent lookup
+                context, index = a.split(':')
+                crx, irx = re.escape(context), re.escape(index)
+                # Operator setter rewrite
+                oldl = newl
+                newl = re.sub(r'([\w:]*)(' + crx + r')\[(' + irx + r')]\s*([\-+*|&<>^]+)=\s*([^;]+);', acwr_op_rewrite_ctx, newl)
+                if oldl != newl:
+                    exts.append('[~' + a + '?=]')
+                # Simple setter rewrite
+                oldl = newl
+                newl = re.sub(r'(' + crx + r')\[(' + irx + r')]\s*=\s*([^;]+);', acwr_rewrite_ctx, newl)
+                if oldl != newl:
+                    exts.append('[~' + a + '=]')
+                # Simple getter rewrite
+                oldl = newl
+                newl = re.sub(crx + r'\[' + irx + ']', context + '._get_' + a.replace(':', '_') + '_()', newl)
+                if oldl != newl:
+                    exts.append('[' + a + ']')
+        for a in accessors:
+            arx = re.escape(a)
             # Operator setter rewrite
             oldl = newl
-            newl = re.sub(r'([\w:]+)\[(' + re.escape(a) + r')]\s*([\-+*|&<>^]+)=\s*([^;]+);', acwr_op_rewrite, newl)
+            newl = re.sub(r'([\w:]+)\[(' + arx + r')]\s*([\-+*|&<>^]+)=\s*([^;]+);', acwr_op_rewrite, newl)
             if oldl != newl:
                 exts.append('[~' + a + '?=]')
             # Simple setter rewrite
             oldl = newl
-            newl = re.sub(r'\[(' + re.escape(a) + r')]\s*=\s*([^;]+);', acwr_rewrite, newl)
+            newl = re.sub(r'\[(' + arx + r')]\s*=\s*([^;]+);', acwr_rewrite, newl)
             if oldl != newl:
                 exts.append('[~' + a + '=]')
             # Simple getter rewrite
             oldl = newl
-            newl = re.sub(r'\[' + re.escape(a) + ']', '._get_' + a + '_()', newl)
+            newl = re.sub(r'\[' + arx + ']', '._get_' + a.replace(':', '_') + '_()', newl)
             if oldl != newl:
                 exts.append('[' + a + ']')
         changed = newl != line
@@ -414,11 +465,19 @@ def impl_rewrite(m):
     return m.group(1) + m.group(2) + '()' + m.group(3)
 
 def acwr_rewrite(m):
-    return '~_set_' + m.group(1) + '_(' + m.group(2) + ');'
+    return '~_set_' + m.group(1).replace(':', '_') + '_(' + m.group(2) + ');'
 
 def acwr_op_rewrite(m):
-    return m.group(1) + '~_set_' + m.group(2) + '_(' + m.group(1) + '._get_' + m.group(2) + '_() ' \
-           + m.group(3) + ' ' + m.group(4) + ');'
+    return m.group(1) + '~_set_' + m.group(2).replace(':', '_') + '_(' + m.group(1) + '._get_' \
+           + m.group(2).replace(':', '_') + '_() ' + m.group(3) + ' ' + m.group(4) + ');'
+
+def acwr_rewrite_ctx(m):
+    return m.group(1) + '~_set_' + m.group(1) + '_' + m.group(2).replace(':', '_') + '_(' + m.group(3) + ');'
+
+def acwr_op_rewrite_ctx(m):
+    return m.group(1) + m.group(2) + '~_set_' + m.group(2) + '_' + m.group(3).replace(':', '_') + '_(' \
+           + m.group(1) + m.group(2) + '._get_' + m.group(2) + '_' + m.group(3).replace(':', '_') + '_() ' \
+           + m.group(4) + ' ' + m.group(5) + ');'
 
 if __name__ == "__main__":
     main()

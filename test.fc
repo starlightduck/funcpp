@@ -197,3 +197,109 @@ int seqno() method_id {
 }
 
 int op = 0x4e73744b; ;;; @"NstK"=0x4e73744b
+
+;;; #storage global
+;;; uint8 a_byte;
+global int g_a_byte;
+;;; cell some_cell;
+global cell g_some_cell;
+;;; uint32 seqno;
+global int g_seqno;
+;;; string symbol;
+global slice g_symbol;
+;;; addr owner;
+global int g_owner;
+global int g_owner_wc;
+;;; uint256 owner_key;
+global int g_owner_key;
+;;; dict dictionary;
+global cell g_dictionary;
+;;; uint24 unusual_int;
+global int g_unusual_int;
+;;; int16 index;
+global int g_index;
+;;; int8 chain_id;
+global int g_chain_id;
+;;; grams amount;
+global int g_amount;
+;;; #end
+() storage_load() inline_ref {
+    slice cs = get_data().begin_parse();
+    g_a_byte = cs~load_uint(8);
+    g_some_cell = cs~load_ref();
+    g_seqno = cs~load_uint(32);
+    int g_symbol_size = cs~load_uint(8);
+    g_symbol = cs~load_bits(g_symbol_size * 8);
+    g_owner = cs~load_uint(256);
+    g_owner_wc = cs~load_int(8);
+    g_owner_key = cs~load_uint(256);
+    g_dictionary = cs~load_dict();
+    g_unusual_int = cs~load_uint(24);
+    g_index = cs~load_int(16);
+    g_chain_id = cs~load_int(8);
+    g_amount = cs~load_grams();
+    cs.end_parse();
+}
+() storage_save(tuple data) impure inline_ref {
+    builder bld = begin_cell()
+            .store_uint(g_a_byte, 8)
+            .store_ref(g_some_cell)
+            .store_uint(g_seqno, 32)
+            .store_uint(g_symbol.slice_bits() / 8, 8)
+            .store_slice(g_symbol)
+            .store_uint(g_owner, 256)
+            .store_int(g_owner_wc, 8)
+            .store_uint(g_owner_key, 256)
+            .store_dict(g_dictionary)
+            .store_uint(g_unusual_int, 24)
+            .store_int(g_index, 16)
+            .store_int(g_chain_id, 8)
+            .store_grams(g_amount)
+    ;
+    set_data(bld.end_cell());
+}
+
+;;; #storage local
+;;; uint256 owner_key;
+int _get_local_owner_key_(tuple data) asm "0 INDEX";
+(tuple, ()) ~_set_local_owner_key_(tuple data, int value) asm "0 SETINDEX";
+;;; addr owner_addr;
+int _get_local_owner_addr_(tuple data) asm "1 INDEX";
+(tuple, ()) ~_set_local_owner_addr_(tuple data, int value) asm "1 SETINDEX";
+int _get_local_owner_addr_wc_(tuple data) asm "2 INDEX";
+(tuple, ()) ~_set_local_owner_addr_wc_(tuple data, int value) asm "2 SETINDEX";
+;;; uint32 expiry;
+int _get_local_expiry_(tuple data) asm "3 INDEX";
+(tuple, ()) ~_set_local_expiry_(tuple data, int value) asm "3 SETINDEX";
+;;; cell data;
+cell _get_local_data_(tuple data) asm "4 INDEX";
+(tuple, ()) ~_set_local_data_(tuple data, cell value) asm "4 SETINDEX";
+;;; #end
+tuple stor_local_pack(int v_owner_key, int v_owner_addr, int v_owner_addr_wc, int v_expiry, cell v_data) asm "5 TUPLE";
+(int, int, int, int, cell) stor_local_unpack(tuple data) asm "5 UNTUPLE";
+tuple local_unserialize(slice cs) inline_ref {
+    int v_owner_key = cs~load_uint(256);
+    int v_owner_addr = cs~load_uint(256);
+    int v_owner_addr_wc = cs~load_int(8);
+    int v_expiry = cs~load_uint(32);
+    cell v_data = cs~load_ref();
+    cs.end_parse();
+    return stor_local_pack(v_owner_key, v_owner_addr, v_owner_addr_wc, v_expiry, v_data);
+}
+cell local_serialize(tuple data) impure inline_ref {
+    (int v_owner_key, int v_owner_addr, int v_owner_addr_wc, int v_expiry, cell v_data) = stor_local_unpack(data);
+    builder bld = begin_cell()
+            .store_uint(v_owner_key, 256)
+            .store_uint(v_owner_addr, 256)
+            .store_int(v_owner_addr_wc, 8)
+            .store_uint(v_expiry, 32)
+            .store_ref(v_data)
+    ;
+    return bld.end_cell();
+}
+
+something~_set_local_expiry_(a + other._get_local_expiry_()); ;;; [~local:expiry=], [local:expiry]
+
+;; Context dependent lookup
+some_local~_set_local_owner_key_(other_local._get_local_owner_key_()); ;;; [~local:owner_key=], [local:owner_key]
+some_local~_set_local_owner_key_(some_local._get_local_owner_key_() & 0); ;;; [~local:owner_key?=]

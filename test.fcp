@@ -103,3 +103,31 @@ int seqno() method_id {
 }
 
 int op = @"NstK";
+
+#storage global
+    uint8 a_byte;
+    cell some_cell;
+    uint32 seqno;
+    string symbol;
+    addr owner;
+    uint256 owner_key;
+    dict dictionary;
+    uint24 unusual_int;
+    int16 index;
+    int8 chain_id;
+    grams amount;
+#end
+
+#storage local
+    uint256 owner_key;
+    addr owner_addr;
+    uint32 expiry;
+    cell data;
+#end
+
+something[local:expiry] = a + other[local:expiry];
+
+;; Context dependent lookup
+some_local[owner_key] = other_local[owner_key];
+some_local[owner_key] &= 0;
+
