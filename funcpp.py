@@ -293,15 +293,15 @@ def process_file(file_name, out_file, raw=False):
                     if rm is None:
                         continue
                     print('', file=out_file)
-                    print(';;; ####################' + ('#' * len(rm.group(1))) + '######', file=out_file)
+                    # print(';;; ####################' + ('#' * len(rm.group(1))) + '######', file=out_file)
                     print(';;; ##### BEGIN INCLUDE ' + rm.group(1) + ' #####', file=out_file)
-                    print(';;; ###                 ' + (' ' * len(rm.group(1))) + '   ###', file=out_file)
+                    # print(';;; ###                 ' + (' ' * len(rm.group(1))) + '   ###', file=out_file)
                     print('', file=out_file)
                     process_file(os.path.dirname(os.path.abspath(file_name)) + os.sep + rm.group(1), out_file, not file_name.endswith('.fcp'))
                     print('', file=out_file)
-                    print(';;; ###               ' + (' ' * len(rm.group(1))) + '   ###', file=out_file)
+                    # print(';;; ###               ' + (' ' * len(rm.group(1))) + '   ###', file=out_file)
                     print(';;; ##### END INCLUDE ' + rm.group(1) + ' #####', file=out_file)
-                    print(';;; ##################' + ('#' * len(rm.group(1))) + '######', file=out_file)
+                    # print(';;; ##################' + ('#' * len(rm.group(1))) + '######', file=out_file)
                     print('', file=out_file)
                     continue
                 if command == 'define':
