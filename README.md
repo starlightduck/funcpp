@@ -89,10 +89,10 @@ Each variable starts on new line in format `type name;`.
 Supported types: `(u?int)([0-9]+)`, `(cell|ref)`, `(dict|optref|cell\?|ref\?)`, `(gram|coin)s?`, 
 `addr(ress)?`, `str(ing)?`, `slice`. `addr` type creates additional `<name>_wc` variable.
 
-This will generate `storage_load`, `storage_save` functions to be used.
+This will generate `load_data`, `store_data` functions to be used.
 
 Using `#storage global` will load data into global variables instead of using a tuple.
 
-If something else than `global` is provided then `arg_serialize` and `arg_unserialize` are generated.
+If something else than `global` is provided then `pack_arg` and `unpack_arg` are generated.
 
 Local storage accessors are used as `[arg:index]` or context-dependent lookup can be used such as `some_arg[index]`.

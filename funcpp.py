@@ -73,7 +73,7 @@ def process_file(file_name, out_file, raw=False):
             if storing:
                 glob = stormode == 'global'
                 root = stormode == '' or glob
-                key = 'storage' if root else 'stor_' + stormode
+                key = 'storage' if root else 'struct_' + stormode
                 acc_pfx = '' if root else stormode + ':'
                 acc_key = acc_pfx.replace(':', '_')
                 line = line.lstrip()
@@ -88,13 +88,13 @@ def process_file(file_name, out_file, raw=False):
                         list_n.append(sd[0])
                     if not glob:
                         asm1, asm2 = (str(storcnt), '') if storcnt <= 15 else (str(storcnt) + ' PUSHINT', 'VAR')
-                        print('tuple ' + key + '_pack(' + ', '.join(list_tn) + ') asm "' + asm1 + ' TUPLE' + asm2 + '";', file=out_file)
-                        print('(' + ', '.join(list_t) + ') ' + key + '_unpack(tuple data) asm "' + asm1 + ' UNTUPLE' + asm2 + '";', file=out_file)
+                        print('tuple ' + key + '_tuple(' + ', '.join(list_tn) + ') asm "' + asm1 + ' TUPLE' + asm2 + '";', file=out_file)
+                        print('(' + ', '.join(list_t) + ') ' + key + '_untuple(tuple data) asm "' + asm1 + ' UNTUPLE' + asm2 + '";', file=out_file)
                     if root:
-                        print(('tuple' if not glob else '()') + ' storage_load() inline_ref {', file=out_file)
+                        print(('tuple' if not glob else '()') + ' load_data() inline_ref {', file=out_file)
                         print('    slice cs = get_data().begin_parse();', file=out_file)
                     else:
-                        print('tuple ' + stormode + '_unserialize(slice cs) inline_ref {', file=out_file)
+                        print('tuple unpack_' + stormode + '(slice cs) inline_ref {', file=out_file)
                     for sd in stordef:
                         st = sd[2]
                         tne = '    ' + (sd[1] + ' ' if not glob else '') + sd[0] + ' = '
@@ -112,14 +112,14 @@ def process_file(file_name, out_file, raw=False):
                             print(tne + 'cs~load_bits(' + sd[0] + '_size);', file=out_file)
                     print('    cs.end_parse();', file=out_file)
                     if not glob:
-                        print('    return ' + key + '_pack(' + ', '.join(list_n) + ');', file=out_file)
+                        print('    return ' + key + '_tuple(' + ', '.join(list_n) + ');', file=out_file)
                     print('}', file=out_file)
                     if root:
-                        print('() storage_save(tuple data) impure inline_ref {', file=out_file)
+                        print('() store_data(tuple data) impure inline_ref {', file=out_file)
                     else:
-                        print('cell ' + stormode + '_serialize(tuple data) impure inline_ref {', file=out_file)
+                        print('cell pack_' + stormode + '(tuple data) impure inline_ref {', file=out_file)
                     if not glob:
-                        print('    (' + ', '.join(list_tn) + ') = ' + key + '_unpack(data);', file=out_file)
+                        print('    (' + ', '.join(list_tn) + ') = ' + key + '_untuple(data);', file=out_file)
                     print('    builder bld = begin_cell()', file=out_file)
                     for sd in stordef:
                         st = sd[2]

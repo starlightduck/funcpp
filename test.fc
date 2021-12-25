@@ -152,9 +152,9 @@ int _get_chain_id_(tuple data) asm "10 INDEX";
 int _get_amount_(tuple data) asm "11 INDEX";
 (tuple, ()) ~_set_amount_(tuple data, int value) asm "11 SETINDEX";
 ;;; #end
-tuple storage_pack(int v_a_byte, cell v_some_cell, int v_seqno, slice v_symbol, int v_owner, int v_owner_wc, int v_owner_key, cell v_dictionary, int v_unusual_int, int v_index, int v_chain_id, int v_amount) asm "12 TUPLE";
-(int, cell, int, slice, int, int, int, cell, int, int, int, int) storage_unpack(tuple data) asm "12 UNTUPLE";
-tuple storage_load() inline_ref {
+tuple storage_tuple(int v_a_byte, cell v_some_cell, int v_seqno, slice v_symbol, int v_owner, int v_owner_wc, int v_owner_key, cell v_dictionary, int v_unusual_int, int v_index, int v_chain_id, int v_amount) asm "12 TUPLE";
+(int, cell, int, slice, int, int, int, cell, int, int, int, int) storage_untuple(tuple data) asm "12 UNTUPLE";
+tuple load_data() inline_ref {
     slice cs = get_data().begin_parse();
     int v_a_byte = cs~load_uint(8);
     cell v_some_cell = cs~load_ref();
@@ -170,10 +170,10 @@ tuple storage_load() inline_ref {
     int v_chain_id = cs~load_int(8);
     int v_amount = cs~load_grams();
     cs.end_parse();
-    return storage_pack(v_a_byte, v_some_cell, v_seqno, v_symbol, v_owner, v_owner_wc, v_owner_key, v_dictionary, v_unusual_int, v_index, v_chain_id, v_amount);
+    return storage_tuple(v_a_byte, v_some_cell, v_seqno, v_symbol, v_owner, v_owner_wc, v_owner_key, v_dictionary, v_unusual_int, v_index, v_chain_id, v_amount);
 }
-() storage_save(tuple data) impure inline_ref {
-    (int v_a_byte, cell v_some_cell, int v_seqno, slice v_symbol, int v_owner, int v_owner_wc, int v_owner_key, cell v_dictionary, int v_unusual_int, int v_index, int v_chain_id, int v_amount) = storage_unpack(data);
+() store_data(tuple data) impure inline_ref {
+    (int v_a_byte, cell v_some_cell, int v_seqno, slice v_symbol, int v_owner, int v_owner_wc, int v_owner_key, cell v_dictionary, int v_unusual_int, int v_index, int v_chain_id, int v_amount) = storage_untuple(data);
     builder bld = begin_cell()
             .store_uint(v_a_byte, 8)
             .store_ref(v_some_cell)
@@ -223,7 +223,7 @@ global int g_chain_id;
 ;;; grams amount;
 global int g_amount;
 ;;; #end
-() storage_load() inline_ref {
+() load_data() inline_ref {
     slice cs = get_data().begin_parse();
     g_a_byte = cs~load_uint(8);
     g_some_cell = cs~load_ref();
@@ -240,7 +240,7 @@ global int g_amount;
     g_amount = cs~load_grams();
     cs.end_parse();
 }
-() storage_save(tuple data) impure inline_ref {
+() store_data(tuple data) impure inline_ref {
     builder bld = begin_cell()
             .store_uint(g_a_byte, 8)
             .store_ref(g_some_cell)
@@ -275,19 +275,19 @@ int _get_local_expiry_(tuple data) asm "3 INDEX";
 cell _get_local_data_(tuple data) asm "4 INDEX";
 (tuple, ()) ~_set_local_data_(tuple data, cell value) asm "4 SETINDEX";
 ;;; #end
-tuple stor_local_pack(int v_owner_key, int v_owner_addr, int v_owner_addr_wc, int v_expiry, cell v_data) asm "5 TUPLE";
-(int, int, int, int, cell) stor_local_unpack(tuple data) asm "5 UNTUPLE";
-tuple local_unserialize(slice cs) inline_ref {
+tuple struct_local_tuple(int v_owner_key, int v_owner_addr, int v_owner_addr_wc, int v_expiry, cell v_data) asm "5 TUPLE";
+(int, int, int, int, cell) struct_local_untuple(tuple data) asm "5 UNTUPLE";
+tuple unpack_local(slice cs) inline_ref {
     int v_owner_key = cs~load_uint(256);
     int v_owner_addr = cs~load_uint(256);
     int v_owner_addr_wc = cs~load_int(8);
     int v_expiry = cs~load_uint(32);
     cell v_data = cs~load_ref();
     cs.end_parse();
-    return stor_local_pack(v_owner_key, v_owner_addr, v_owner_addr_wc, v_expiry, v_data);
+    return struct_local_tuple(v_owner_key, v_owner_addr, v_owner_addr_wc, v_expiry, v_data);
 }
-cell local_serialize(tuple data) impure inline_ref {
-    (int v_owner_key, int v_owner_addr, int v_owner_addr_wc, int v_expiry, cell v_data) = stor_local_unpack(data);
+cell pack_local(tuple data) impure inline_ref {
+    (int v_owner_key, int v_owner_addr, int v_owner_addr_wc, int v_expiry, cell v_data) = struct_local_untuple(data);
     builder bld = begin_cell()
             .store_uint(v_owner_key, 256)
             .store_uint(v_owner_addr, 256)
